@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Для тебя ♥</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#ff3b7a">
+  <style>
+    html,body { height:100%; margin:0; }
+    body {
+      min-height:100vh;
+      min-width:100vw;
+      background: radial-gradient(1200px 800px at 70% 20%, #ff7aa8 0%, #ff4f88 35%, #1a0f1a 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      animation: bgShift 12s ease-in-out infinite;
+    }
+    @keyframes bgShift {
+      0% { filter:hue-rotate(0deg) saturate(1.05); }
+      50% { filter:hue-rotate(12deg) saturate(1.2); }
+      100% { filter:hue-rotate(0deg) saturate(1.05); }
+    }
+    #heartCanvas {
+      display: block;
+      margin: 0 auto;
+      background: transparent;
+      /* Для glow-эффекта */
+      filter: drop-shadow(0 0 32px #ffb3e6) drop-shadow(0 0 64px #ff3b7a88);
+      /* Размер адаптивный */
+      width: min(90vw, 520px);
+      height: auto;
+      max-height: 60vh;
+    }
+    .caption {
+      margin-top: 32px;
+      color: #fff;
+      font-size: clamp(24px, 6vw, 44px);
+      font-weight: 800;
+      text-align: center;
+      text-shadow: 0 2px 16px #ff3b7a88, 0 1px 0 #fff2;
+      letter-spacing: 0.02em;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="heartCanvas" width="600" height="520" aria-label="Сердце"></canvas>
+  <div class="caption">Для тебя, Ира</div>
+  <script>
+    // === АНИМАЦИЯ СЕРДЦА ИЗ ЛИНИЙ С ПОЯВЛЕНИЕМ ===
+    const canvas = document.getElementById('heartCanvas');
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width, H = canvas.height;
+
+    function resizeCanvas() {
+      // Адаптивно под размер окна
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.min(window.innerWidth * 0.9, 600);
+      const h = Math.min(window.innerHeight * 0.6, 520);
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      W = canvas.width;
+      H = canvas.height;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Функция для получения точки на кривой сердца по параметру t [0..1]
+    function heartPoint(t, scale=1) {
+      // t: 0..1
+      const a = Math.PI * 2 * t;
+      // Классическая формула сердца
+      const x = 16 * Math.pow(Math.sin(a), 3);
+      const y = 13 * Math.cos(a) - 5 * Math.cos(2*a) - 2 * Math.cos(3*a) - Math.cos(4*a);
+      return [
+        W/2 + scale * x * (W/38),
+        H/2 - scale * y * (H/38)
+      ];
+    }
+
+    // Параметры линий
+    const LINES = 140;
+    const LINE_LENGTH = 0.22; // доля длины кривой
+    const COLORS = [
+      "#fff0", "#fff7", "#ffb3e6", "#ff3b7a", "#ff9cc2", "#fff"
+    ];
+
+    // --- Новое: управление количеством видимых линий ---
+    let appearStart = null;
+    const appearDuration = 1800; // мс, время появления всех линий
+
+    // Анимация
+    function drawHeartLines(time, visibleLines) {
+      ctx.clearRect(0,0,W,H);
+      for(let i=0; i<visibleLines; ++i) {
+        // t0 — старт линии, t1 — конец
+        const t0 = (i / LINES + (time/9000) + Math.sin(time/1800+i)*0.002) % 1;
+        const t1 = (t0 + LINE_LENGTH + 0.04*Math.sin(time/1400+i)) % 1;
+        // Пульсация толщины и цвета
+        const pulse = 1 + 0.18*Math.sin(time/600 + i*0.2);
+        const glow = 0.7 + 0.3*Math.sin(time/1100 + i*0.7);
+        // Цветовая анимация
+        const grad = ctx.createLinearGradient(...heartPoint(t0), ...heartPoint(t1));
+        grad.addColorStop(0, COLORS[2]);
+        grad.addColorStop(0.5, COLORS[3]);
+        grad.addColorStop(1, COLORS[4]);
+        ctx.save();
+        ctx.globalAlpha = 0.82 + 0.18*Math.sin(time/1200 + i);
+        ctx.shadowColor = COLORS[3];
+        ctx.shadowBlur = 18*glow;
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 2.2 * pulse;
+        ctx.beginPath();
+        const [x0, y0] = heartPoint(t0, 1.0 + 0.04*Math.sin(time/900 + i));
+        ctx.moveTo(x0, y0);
+        // Линия вдоль кривой сердца
+        for(let s=0; s<=1; s+=0.12) {
+          const t = (t0 + (t1-t0)*s + 1) % 1;
+          const [x, y] = heartPoint(t, 1.0 + 0.04*Math.sin(time/900 + i));
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Мягкое свечение появляется только когда почти все линии уже есть
+      if(visibleLines > LINES * 0.85) {
+        ctx.save();
+        ctx.globalAlpha = 0.13;
+        ctx.beginPath();
+        for(let t=0; t<=1.001; t+=0.01) {
+          const [x, y] = heartPoint(t, 1.13 + 0.02*Math.sin(time/1200));
+          if(t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.closePath();
+        ctx.shadowColor = COLORS[3];
+        ctx.shadowBlur = 48;
+        ctx.fillStyle = COLORS[2];
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    function animate(now) {
+      if (!appearStart) appearStart = now || performance.now();
+      const elapsed = (now || performance.now()) - appearStart;
+      // Вычисляем сколько линий показывать (от 1 до LINES)
+      let visibleLines;
+      if (elapsed < appearDuration) {
+        // Плавное появление: сначала 1, потом всё больше
+        visibleLines = Math.max(1, Math.floor((elapsed / appearDuration) * LINES));
+      } else {
+        visibleLines = LINES;
+      }
+      drawHeartLines(now || performance.now(), visibleLines);
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+  </script>
+</body>
+</html>
